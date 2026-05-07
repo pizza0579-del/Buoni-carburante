@@ -1772,9 +1772,10 @@ function renderSocietaList() {
           ${badges || '<span style="color:var(--text-muted);font-size:13px;">Nessuna targa</span>'}
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
         <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="apriModalTarga('${soc}')">+ Targa</button>
-        <button class="btn btn-danger" onclick="eliminaSocieta('${soc}')">Elimina</button>
+        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="rinominaSocieta('${soc}')">✏ Rinomina</button>
+        <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;" onclick="eliminaSocieta('${soc}')">🗑 Elimina</button>
       </div>
     </div>`;
   }).join('');
@@ -1818,6 +1819,25 @@ function eliminaSocieta(soc) {
   populateSocietaSelect();
   renderSocietaList();
   showToast('Società eliminata');
+}
+
+function rinominaSocieta(soc) {
+  const nuovoNome = prompt('Rinomina società "' + soc + '":', soc);
+  if (!nuovoNome || nuovoNome.trim() === '' || nuovoNome.trim() === soc) return;
+  const nome = nuovoNome.trim();
+  if (db.societa[nome]) { showToast('⚠ Esiste già una società con questo nome'); return; }
+  // Sposta targhette sul nuovo nome
+  db.societa[nome] = db.societa[soc];
+  delete db.societa[soc];
+  // Aggiorna tutti i buoni con il vecchio nome
+  db.buoni.forEach(function(b) {
+    if (b.societa === soc) b.societa = nome;
+  });
+  saveData();
+  populateSocietaSelect();
+  renderSocietaList();
+  if (typeof renderRegistro === 'function') renderRegistro();
+  showToast('✓ Società rinominata in "' + nome + '"');
 }
 
 // ═══════════════════════════════════════════════
