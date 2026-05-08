@@ -1269,7 +1269,7 @@ function onSocietaChange() {
     return;
   }
   btnNuova.style.display = 'block';
-  const plates = db.societa[soc] || [];
+  const plates = (db.societa[soc] || []).slice().sort((a,b) => a.localeCompare(b));
   if (plates.length === 0) {
     targaSel.innerHTML = '<option value="">Nessuna targa registrata</option>';
   } else {
@@ -1996,7 +1996,7 @@ function renderSocietaList() {
   const socs = Object.keys(db.societa).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
 
   container.innerHTML = socs.map(soc => {
-    const plates = db.societa[soc];
+    const plates = (db.societa[soc] || []).slice().sort((a,b) => a.localeCompare(b));
     const badges = plates.map(p =>
       `<span class="targa-badge" style="margin:2px">${p} <span style="cursor:pointer;color:var(--red)" onclick="rimuoviTarga('${soc}','${p}')">×</span></span>`
     ).join('');
