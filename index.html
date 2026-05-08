@@ -820,7 +820,8 @@
     <div id="receiptContainer"></div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="chiudiModal()">Chiudi</button>
-      <button class="btn btn-print" onclick="scaricaPDF()">⬇ Scarica PDF</button>
+      <button class="btn btn-secondary" onclick="scaricaPDF()">⬇ PDF</button>
+      <button class="btn btn-print" onclick="stampaBluetooth()">🖨 Stampa</button>
     </div>
   </div>
 </div>
@@ -858,7 +859,242 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+// ═══════════════════════════════════════════════
+//  STAMPA BLUETOOTH ESC/POS (58mm termica)
+// ═══════════════════════════════════════════════
+
+var btDevice = null;
+var btCharacteristic = null;
+
+// UUID servizio stampante termica (standard ESC/POS BT)
+var PRINTER_SERVICE = '000018f0-0000-1000-8000-00805f9b34fb';
+var PRINTER_CHAR    = '00002af1-0000-1000-8000-00805f9b34fb';
+
+async function connettiBluetooth() {
+  if (!navigator.bluetooth) {
+    showToast('⚠ Bluetooth non supportato. Usa Chrome su Android.');
+    return false;
+  }
+  try {
+    showToast('🔵 Ricerca stampante...');
+    btDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [PRINTER_SERVICE] }],
+      optionalServices: [PRINTER_SERVICE]
+    });
+    const server = await btDevice.gatt.connect();
+    const service = await server.getPrimaryService(PRINTER_SERVICE);
+    btCharacteristic = await service.getCharacteristic(PRINTER_CHAR);
+    showToast('✓ Stampante connessa: ' + btDevice.name);
+    return true;
+  } catch(e) {
+    // Prova UUID generico se il primo non funziona
+    try {
+      btDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [PRINTER_SERVICE, '49535343-fe7d-4ae5-8fa9-9fafd205e455']
+      });
+      const server = await btDevice.gatt.connect();
+      try {
+        const service = await server.getPrimaryService(PRINTER_SERVICE);
+        btCharacteristic = await service.getCharacteristic(PRINTER_CHAR);
+      } catch(e2) {
+        const service = await server.getPrimaryService('49535343-fe7d-4ae5-8fa9-9fafd205e455');
+        btCharacteristic = await service.getCharacteristic('49535343-1e4d-4bd9-ba61-23c647249616');
+      }
+      showToast('✓ Stampante connessa: ' + btDevice.name);
+      return true;
+    } catch(e2) {
+      showToast('✕ Connessione fallita. Verifica che la stampante sia accesa.');
+      btDevice = null; btCharacteristic = null;
+      return false;
+    }
+  }
+}
+
+async function inviaBytes(data) {
+  if (!btCharacteristic) return;
+  // Invia in chunk da 512 byte
+  var chunkSize = 512;
+  for (var i = 0; i < data.length; i += chunkSize) {
+    var chunk = data.slice(i, i + chunkSize);
+    await btCharacteristic.writeValue(chunk);
+    await new Promise(r => setTimeout(r, 50));
+  }
+}
+
+function escPos(b) {
+  // Costruttore comandi ESC/POS
+  var cmds = [];
+
+  // Inizializza stampante
+  cmds.push(0x1B, 0x40);
+
+  b.forEach(function(cmd) {
+    if (typeof cmd === 'number') {
+      cmds.push(cmd);
+    } else if (typeof cmd === 'string') {
+      // Converti stringa in bytes (ISO-8859-1)
+      for (var i = 0; i < cmd.length; i++) {
+        var c = cmd.charCodeAt(i);
+        cmds.push(c < 256 ? c : 63); // ? per caratteri non supportati
+      }
+    } else if (Array.isArray(cmd)) {
+      cmd.forEach(function(b) { cmds.push(b); });
+    }
+  });
+
+  return new Uint8Array(cmds);
+}
+
+function buildEscPosRicevuta(b) {
+  var d = new Date(b.data + 'T00:00:00');
+  var dataStr = d.toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit', year:'numeric'});
+  var numBuono = String(b.id).padStart(4, '0');
+  var euroCarb = b.euroCarb !== undefined ? b.euroCarb : b.euro;
+  var extra = b.extra || [];
+
+  // Funzioni helper ESC/POS
+  var INIT        = [0x1B, 0x40];
+  var CENTER      = [0x1B, 0x61, 0x01];
+  var LEFT        = [0x1B, 0x61, 0x00];
+  var BOLD_ON     = [0x1B, 0x45, 0x01];
+  var BOLD_OFF    = [0x1B, 0x45, 0x00];
+  var BIG_ON      = [0x1D, 0x21, 0x11]; // doppia altezza e larghezza
+  var BIG_OFF     = [0x1D, 0x21, 0x00];
+  var TALL_ON     = [0x1D, 0x21, 0x01]; // solo altezza doppia
+  var LF          = [0x0A];
+  var DASHED      = '--------------------------------
+';
+  var CUT         = [0x1D, 0x56, 0x41, 0x03]; // taglio parziale
+
+  // Funzione per riga etichetta/valore su 32 caratteri
+  function rigaLV(label, valore) {
+    var l = label.toUpperCase();
+    var v = String(valore);
+    var spazi = 32 - l.length - v.length;
+    if (spazi < 1) spazi = 1;
+    return l + ' '.repeat(spazi) + v + '
+';
+  }
+
+  var cmds = [];
+  cmds.push(INIT);
+
+  // ── Intestazione centrata ──
+  cmds.push(CENTER);
+  cmds.push(BOLD_ON);
+  cmds.push('DISTRIBUTORE DI CARBURANTE
+');
+  cmds.push(BIG_ON);
+  cmds.push('TOTALERG
+');
+  cmds.push(BIG_OFF);
+  cmds.push(BOLD_OFF);
+  cmds.push('di Fabrizi Emanuela
+');
+  cmds.push('-- BUONO CARBURANTE --
+');
+  cmds.push(LF);
+
+  // ── Separatore ──
+  cmds.push(LEFT);
+  cmds.push(DASHED);
+
+  // ── Dati ──
+  cmds.push(BOLD_ON);
+  cmds.push(rigaLV('N. Buono', numBuono));
+  cmds.push(rigaLV('Data', dataStr));
+  cmds.push(DASHED);
+  cmds.push(rigaLV('Societa', b.societa.toUpperCase()));
+  cmds.push(rigaLV('Targa', b.targa || 'N/D'));
+  cmds.push(DASHED);
+  cmds.push(rigaLV('Carburante', b.carburante));
+  cmds.push(rigaLV('Importo', 'EUR ' + euroCarb.toFixed(2)));
+  cmds.push(BOLD_OFF);
+
+  // ── Prodotti extra ──
+  if (extra.length > 0) {
+    cmds.push(DASHED);
+    cmds.push(BOLD_ON);
+    cmds.push('ALTRI PRODOTTI
+');
+    cmds.push(BOLD_OFF);
+    extra.forEach(function(p) {
+      cmds.push(rigaLV(p.desc, 'EUR ' + p.euro.toFixed(2)));
+    });
+  }
+
+  // ── Totale ──
+  cmds.push(DASHED);
+  cmds.push(CENTER);
+  cmds.push(BOLD_ON);
+  cmds.push(BIG_ON);
+  cmds.push('TOTALE
+');
+  cmds.push('EUR ' + b.euro.toFixed(2) + '
+');
+  cmds.push(BIG_OFF);
+  cmds.push(BOLD_OFF);
+  cmds.push(LF);
+
+  // ── Firma ──
+  cmds.push(LEFT);
+  cmds.push('--------------------------------
+');
+  cmds.push(CENTER);
+  cmds.push('Firma
+');
+  cmds.push(LF);
+  cmds.push(LF);
+
+  // ── Footer ──
+  cmds.push('Grazie per la fiducia
+');
+  cmds.push('Conservare questo scontrino
+');
+  cmds.push(LF);
+  cmds.push(LF);
+  cmds.push(LF);
+
+  // ── Taglio ──
+  cmds.push(CUT);
+
+  return escPos(cmds);
+}
+
+async function stampaBluetooth() {
+  var b = currentReceiptData;
+  if (!b) return;
+  await stampaBluetoothDati(b);
+  document.getElementById('modalStampa').classList.remove('open');
+  resetForm();
+}
+
+async function stampaBluetoothId(id) {
+  var b = db.buoni.find(function(x) { return x.id === id; });
+  if (!b) return;
+  await stampaBluetoothDati(b);
+}
+
+async function stampaBluetoothDati(b) {
+  // Riconnetti se necessario
+  if (!btCharacteristic || !btDevice || !btDevice.gatt.connected) {
+    var ok = await connettiBluetooth();
+    if (!ok) return;
+  }
+  try {
+    showToast('🖨 Stampa in corso...');
+    var dati = buildEscPosRicevuta(b);
+    await inviaBytes(dati);
+    showToast('✓ Ricevuta stampata!');
+  } catch(e) {
+    showToast('✕ Errore stampa: ' + e.message);
+    btCharacteristic = null;
+  }
+}
+
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
@@ -1257,7 +1493,7 @@ function generaPDFbuono(b) {
   doc.setLineDashPattern([1.5, 1], 0);
   doc.setDrawColor(160, 160, 160);
   doc.setLineWidth(0.3);
-  doc.line(4, y, 76, y);
+  doc.line(4, y, 54, y);
   y += 6;
 
   // ── Funzione riga etichetta / valore ──
@@ -1281,7 +1517,7 @@ function generaPDFbuono(b) {
   // Linea sottile
   doc.setLineDashPattern([0.5, 0.8], 0);
   doc.setDrawColor(210, 210, 210);
-  doc.line(4, y, 76, y);
+  doc.line(4, y, 54, y);
   y += 4;
 
   riga('Societa', b.societa.toUpperCase());
@@ -1291,7 +1527,7 @@ function generaPDFbuono(b) {
   // Linea sottile
   doc.setLineDashPattern([0.5, 0.8], 0);
   doc.setDrawColor(210, 210, 210);
-  doc.line(4, y, 76, y);
+  doc.line(4, y, 54, y);
   y += 4;
 
   // ── Carburante ──
@@ -1303,7 +1539,7 @@ function generaPDFbuono(b) {
     y += 1;
     doc.setLineDashPattern([0.5, 0.8], 0);
     doc.setDrawColor(210, 210, 210);
-    doc.line(4, y, 76, y);
+    doc.line(4, y, 54, y);
     y += 4;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
@@ -1320,7 +1556,7 @@ function generaPDFbuono(b) {
   doc.setLineDashPattern([1.5, 1], 0);
   doc.setDrawColor(60, 60, 60);
   doc.setLineWidth(0.4);
-  doc.line(4, y, 76, y);
+  doc.line(4, y, 54, y);
   y += 6;
 
   // ── Totale ──
@@ -1419,7 +1655,7 @@ function renderRegistro() {
       <td class="euro-val">€ ${b.euro.toFixed(2)}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Anteprima" onclick="ristampaBuono(${b.id})">👁</button>
-        <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Stampa diretta" onclick="stampaDiretta(${b.id})">🖨</button>
+        <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Stampa Bluetooth" onclick="stampaBluetoothId(${b.id})">🖨</button>
         <button class="btn btn-danger" onclick="eliminaBuono(${b.id})">✕</button>
       </td>
     </tr>`;
