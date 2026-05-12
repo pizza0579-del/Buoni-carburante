@@ -606,9 +606,22 @@
 
   .chevron { transition: transform 0.2s; display: inline-block; }
   .collapsed .chevron { transform: rotate(-90deg); }
+
+  /* ─── PRINT ───────────────────────────────────── */
+  @media print {
+    body { background: white; color: #111; }
+    header, .tabs, .sync-bar, .page, .modal-overlay, .toast, .no-print { display: none !important; }
+    #print-area { display: block !important; }
+  }
+  #print-area { display: none; }
 </style>
 </head>
 <body>
+
+<!-- ────────────────── AREA DI STAMPA (nascosta) ────── -->
+<div id="print-area">
+  <div id="print-receipt-content"></div>
+</div>
 
 <header class="no-print">
   <div class="logo"><span style="color:var(--text);font-weight:400;">Buoni Carburante</span></div>
@@ -821,7 +834,7 @@
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="chiudiModal()">Chiudi</button>
       <button class="btn btn-secondary" onclick="scaricaPDF()">⬇ PDF</button>
-      <button class="btn btn-print" onclick="stampaBluetooth()">📄 Scarica PDF</button>
+      <button class="btn btn-print" onclick="stampaBuono()">🖨 Stampa</button>
     </div>
   </div>
 </div>
@@ -1063,18 +1076,29 @@ function buildEscPosRicevuta(b) {
   return escPos(cmds);
 }
 
-function stampaBluetooth() {
-  var b = currentReceiptData;
-  if (!b) return;
+var PRINT_STYLES = '<style>body{background:white;display:flex;justify-content:center;padding:20px;font-family:monospace;margin:0}.receipt-preview{width:280px;color:#1a1a1a}.receipt-preview::after{display:none}.receipt-title{text-align:center;font-size:16px;font-weight:bold;border-bottom:2px dashed #ccc;padding-bottom:10px;margin-bottom:10px}.receipt-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}.receipt-row .key{color:#666;text-transform:uppercase;font-size:10px}.receipt-row .val{font-weight:bold}.receipt-total{border-top:2px dashed #ccc;margin-top:10px;padding-top:10px;font-size:18px;display:flex;justify-content:space-between;font-weight:bold}.receipt-signature{margin-top:78px;margin-bottom:6px}.receipt-signature-line{border-top:1px dashed #999;width:70%;margin:0 auto}.receipt-signature-label{text-align:center;font-size:10px;color:#999;margin-top:4px;text-transform:uppercase;letter-spacing:0.1em}.receipt-footer{text-align:center;font-size:10px;color:#999;margin-top:10px}</style>';
+
+function stampaBuono() {
+  var content = document.getElementById('receiptContainer').innerHTML;
+  var printDiv = document.getElementById('print-receipt-content');
+  printDiv.innerHTML = PRINT_STYLES + content;
   document.getElementById('modalStampa').classList.remove('open');
-  generaPDFbuono(b);
-  resetForm();
+  setTimeout(function() {
+    window.print();
+    setTimeout(function() { printDiv.innerHTML = ''; resetForm(); }, 300);
+  }, 200);
 }
 
-function stampaBluetoothId(id) {
+function stampaDiretta(id) {
   var b = db.buoni.find(function(x) { return x.id === id; });
   if (!b) return;
-  generaPDFbuono(b);
+  var content = buildReceipt(b);
+  var printDiv = document.getElementById('print-receipt-content');
+  printDiv.innerHTML = PRINT_STYLES + content;
+  setTimeout(function() {
+    window.print();
+    setTimeout(function() { printDiv.innerHTML = ''; }, 300);
+  }, 200);
 }
 
 </script>
@@ -1638,7 +1662,7 @@ function renderRegistro() {
       <td class="euro-val">€ ${b.euro.toFixed(2)}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Anteprima" onclick="ristampaBuono(${b.id})">👁</button>
-        <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Stampa Bluetooth" onclick="stampaBluetoothId(${b.id})">🖨</button>
+        <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Stampa Bluetooth" onclick="stampaDiretta(${b.id})">🖨</button>
         <button class="btn btn-danger" onclick="eliminaBuono(${b.id})">✕</button>
       </td>
     </tr>`;
@@ -1656,12 +1680,6 @@ function eliminaBuono(id) {
 function ristampaBuono(id) {
   const b = db.buoni.find(x => x.id === id);
   if (b) mostraAnteprima(b);
-}
-
-function stampaDiretta(id) {
-  const b = db.buoni.find(x => x.id === id);
-  if (!b) return;
-  generaPDFbuono(b);
 }
 
 function esportaCSV() {
