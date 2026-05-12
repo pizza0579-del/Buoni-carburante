@@ -821,7 +821,7 @@
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="chiudiModal()">Chiudi</button>
       <button class="btn btn-secondary" onclick="scaricaPDF()">⬇ PDF</button>
-      <button class="btn btn-print" onclick="stampaBluetooth()">🖨 Stampa</button>
+      <button class="btn btn-print" onclick="stampaBluetooth()">📄 Scarica PDF</button>
     </div>
   </div>
 </div>
@@ -1063,47 +1063,18 @@ function buildEscPosRicevuta(b) {
   return escPos(cmds);
 }
 
-async function stampaBluetooth() {
+function stampaBluetooth() {
   var b = currentReceiptData;
   if (!b) return;
   document.getElementById('modalStampa').classList.remove('open');
-
-  // Connetti se non già connesso
-  if (!btCharacteristic) {
-    var ok = await connettiBluetooth();
-    if (!ok) return;
-  }
-
-  try {
-    var bytes = buildEscPosRicevuta(b);
-    await inviaBytes(bytes);
-    showToast('✓ Buono stampato!');
-    resetForm();
-  } catch(e) {
-    showToast('✕ Errore stampa: ' + e.message);
-    btDevice = null;
-    btCharacteristic = null;
-  }
+  generaPDFbuono(b);
+  resetForm();
 }
 
-async function stampaBluetoothId(id) {
+function stampaBluetoothId(id) {
   var b = db.buoni.find(function(x) { return x.id === id; });
   if (!b) return;
-
-  if (!btCharacteristic) {
-    var ok = await connettiBluetooth();
-    if (!ok) return;
-  }
-
-  try {
-    var bytes = buildEscPosRicevuta(b);
-    await inviaBytes(bytes);
-    showToast('✓ Buono stampato!');
-  } catch(e) {
-    showToast('✕ Errore stampa: ' + e.message);
-    btDevice = null;
-    btCharacteristic = null;
-  }
+  generaPDFbuono(b);
 }
 
 </script>
