@@ -1066,119 +1066,15 @@ function buildEscPosRicevuta(b) {
 function stampaBluetooth() {
   var b = currentReceiptData;
   if (!b) return;
-  // Chiudi modal prima, poi stampa con delay per permettere al DOM di aggiornarsi
   document.getElementById('modalStampa').classList.remove('open');
-  var bCopy = JSON.parse(JSON.stringify(b));
-  setTimeout(function() {
-    stampaBluetoothDati(bCopy);
-    resetForm();
-  }, 300);
+  generaPDFbuono(b);
+  resetForm();
 }
 
-async function stampaBluetoothId(id) {
+function stampaBluetoothId(id) {
   var b = db.buoni.find(function(x) { return x.id === id; });
   if (!b) return;
-  await stampaBluetoothDati(b);
-}
-
-async function stampaBluetoothDati(b) {
-  try {
-    showToast('🖨 Preparazione stampa...');
-    // Genera il PDF come blob
-    var { jsPDF } = window.jspdf;
-    var extra = b.extra || [];
-    var altezza = 170 + (extra.length * 10);
-    var doc = new jsPDF({ unit: 'mm', format: [58, altezza], orientation: 'portrait' });
-    var d = new Date(b.data + 'T00:00:00');
-    var dataStr = d.toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit', year:'numeric'});
-    var numBuono = String(b.id).padStart(4, '0');
-    var euroCarb = b.euroCarb !== undefined ? b.euroCarb : b.euro;
-    var cx = 29, lx = 4, rx = 54, y = 12;
-
-    function line(x1, x2) {
-      doc.setLineDashPattern([2, 1.5], 0);
-      doc.setDrawColor(100,100,100);
-      doc.setLineWidth(0.4);
-      doc.line(x1, y, x2, y);
-      y += 5;
-    }
-    function thinLine() {
-      doc.setLineDashPattern([1, 1.5], 0);
-      doc.setDrawColor(180,180,180);
-      doc.setLineWidth(0.2);
-      doc.line(4, y, 54, y);
-      y += 5;
-    }
-    function riga(label, valore) {
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(8);
-      doc.setTextColor(80,80,80);
-      doc.text(label.toUpperCase(), lx, y);
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(9);
-      doc.setTextColor(0,0,0);
-      doc.text(String(valore), rx, y, {align:'right'});
-      y += 7;
-    }
-
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(0,0,0);
-    doc.text('DISTRIBUTORE DI CARBURANTE', cx, y, {align:'center'}); y += 7;
-    doc.setFontSize(16); doc.text('TOTALERG', cx, y, {align:'center'}); y += 7;
-    doc.setFont('helvetica','normal'); doc.setFontSize(9);
-    doc.text('di Fabrizi Emanuela', cx, y, {align:'center'}); y += 6;
-    doc.setFontSize(8); doc.setTextColor(80,80,80);
-    doc.text('-- BUONO CARBURANTE --', cx, y, {align:'center'});
-    doc.setTextColor(0,0,0); y += 5;
-    line(4, 54);
-    riga('N. Buono', numBuono);
-    riga('Data', dataStr); y += 2;
-    thinLine();
-    riga('Societa', b.societa.toUpperCase());
-    riga('Targa', b.targa || 'N/D'); y += 2;
-    thinLine();
-    riga('Carburante', b.carburante);
-    riga('Importo', 'EUR ' + euroCarb.toFixed(2));
-    if (extra.length > 0) {
-      y += 2; thinLine();
-      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(80,80,80);
-      doc.text('ALTRI PRODOTTI', lx, y); y += 6;
-      extra.forEach(function(p) { riga(p.desc, 'EUR ' + p.euro.toFixed(2)); });
-    }
-    y += 3; line(4, 54);
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(0,0,0);
-    doc.text('TOTALE', lx, y);
-    doc.setFontSize(14); doc.text('EUR ' + b.euro.toFixed(2), rx, y, {align:'right'}); y += 18;
-    doc.setLineDashPattern([1.5,1.5],0); doc.setDrawColor(140,140,140); doc.setLineWidth(0.3);
-    doc.line(8, y, 50, y); y += 5;
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('Firma', cx, y, {align:'center'}); y += 10;
-    doc.setFontSize(7.5); doc.setTextColor(160,160,160);
-    doc.text('Grazie per la fiducia', cx, y, {align:'center'}); y += 5;
-    doc.text('Conservare questo scontrino', cx, y, {align:'center'});
-
-    // Ottieni il PDF come blob e condividilo con ESC POS app
-    var pdfBlob = doc.output('blob');
-    var fileName = 'buono_' + numBuono + '.pdf';
-    var file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-    // Usa Web Share API per aprire direttamente ESC POS app
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: 'Buono Carburante ' + numBuono
-      });
-      showToast('✓ Inviato alla stampante!');
-    } else {
-      // Fallback: scarica il PDF
-      var url = URL.createObjectURL(pdfBlob);
-      var a = document.createElement('a');
-      a.href = url; a.download = fileName; a.click();
-      URL.revokeObjectURL(url);
-      showToast('⬇ PDF scaricato — aprilo con ESC POS app');
-    }
-  } catch(e) {
-    showToast('✕ Errore: ' + e.message);
-  }
+  generaPDFbuono(b);
 }
 
 </script>
