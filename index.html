@@ -1063,18 +1063,47 @@ function buildEscPosRicevuta(b) {
   return escPos(cmds);
 }
 
-function stampaBluetooth() {
+async function stampaBluetooth() {
   var b = currentReceiptData;
   if (!b) return;
   document.getElementById('modalStampa').classList.remove('open');
-  generaPDFbuono(b);
-  resetForm();
+
+  // Connetti se non già connesso
+  if (!btCharacteristic) {
+    var ok = await connettiBluetooth();
+    if (!ok) return;
+  }
+
+  try {
+    var bytes = buildEscPosRicevuta(b);
+    await inviaBytes(bytes);
+    showToast('✓ Buono stampato!');
+    resetForm();
+  } catch(e) {
+    showToast('✕ Errore stampa: ' + e.message);
+    btDevice = null;
+    btCharacteristic = null;
+  }
 }
 
-function stampaBluetoothId(id) {
+async function stampaBluetoothId(id) {
   var b = db.buoni.find(function(x) { return x.id === id; });
   if (!b) return;
-  generaPDFbuono(b);
+
+  if (!btCharacteristic) {
+    var ok = await connettiBluetooth();
+    if (!ok) return;
+  }
+
+  try {
+    var bytes = buildEscPosRicevuta(b);
+    await inviaBytes(bytes);
+    showToast('✓ Buono stampato!');
+  } catch(e) {
+    showToast('✕ Errore stampa: ' + e.message);
+    btDevice = null;
+    btCharacteristic = null;
+  }
 }
 
 </script>
