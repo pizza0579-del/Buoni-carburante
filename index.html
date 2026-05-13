@@ -820,8 +820,7 @@
     <div id="receiptContainer"></div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="chiudiModal()">Chiudi</button>
-      <button class="btn btn-secondary" onclick="scaricaPDF()">⬇ PDF</button>
-      <button class="btn btn-print" onclick="stampaBluetooth()">🖨 Stampa</button>
+      <button class="btn btn-print" onclick="scaricaPDF()">⬇ Scarica PDF</button>
     </div>
   </div>
 </div>
@@ -1624,7 +1623,7 @@ function renderRegistro() {
       <td class="euro-val">€ ${b.euro.toFixed(2)}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Anteprima" onclick="ristampaBuono(${b.id})">👁</button>
-        <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Stampa Bluetooth" onclick="stampaBluetoothId(${b.id})">🖨</button>
+        <button class="btn btn-print" style="padding:5px 10px;font-size:11px;" title="Scarica PDF" onclick="generaPDFbuono(db.buoni.find(x=>x.id===${b.id}))">⬇</button>
         <button class="btn btn-danger" onclick="eliminaBuono(${b.id})">✕</button>
       </td>
     </tr>`;
