@@ -1423,139 +1423,106 @@ function scaricaPDF() {
 
 function generaPDFbuono(b) {
   var { jsPDF } = window.jspdf;
-  // Calcola altezza dinamica in base ai prodotti extra
   var extra = b.extra || [];
-  var altezza = 150 + (extra.length * 8);
-  var doc = new jsPDF({ unit: 'mm', format: [80, altezza], orientation: 'portrait' });
+  var altezza = 190 + (extra.length * 12);
+  var doc = new jsPDF({ unit: 'mm', format: [58, altezza], orientation: 'portrait' });
 
   var d = new Date(b.data + 'T00:00:00');
   var dataStr = d.toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit', year:'numeric'});
   var numBuono = String(b.id).padStart(4, '0');
   var euroCarb = b.euroCarb !== undefined ? b.euroCarb : b.euro;
+  var cx = 29, lx = 4, rx = 54, y = 12;
 
-  var cx = 40;  // centro
-  var lx = 5;   // colonna sinistra (etichetta)
-  var rx = 75;  // colonna destra (valore)
-  var y = 10;
-
-  // ── Intestazione ──
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(40, 40, 40);
-  doc.text('DISTRIBUTORE DI CARBURANTE', cx, y, {align:'center'});
-  y += 5;
-  doc.setFontSize(12);
-  doc.text('TOTALERG', cx, y, {align:'center'});
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text('di Fabrizi Emanuela', cx, y, {align:'center'});
-  y += 5;
-  doc.setFontSize(7);
-  doc.setTextColor(150, 150, 150);
-  doc.text('- BUONO CARBURANTE -', cx, y, {align:'center'});
-  doc.setTextColor(0, 0, 0);
-  y += 4;
-
-  // Linea separatore
-  doc.setLineDashPattern([1.5, 1], 0);
-  doc.setDrawColor(160, 160, 160);
-  doc.setLineWidth(0.3);
-  doc.line(4, y, 54, y);
-  y += 6;
-
-  // ── Funzione riga etichetta / valore ──
-  function riga(label, valore, grassettoVal) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(130, 130, 130);
-    doc.text(label.toUpperCase(), lx, y);
-    doc.setFont('helvetica', grassettoVal !== false ? 'bold' : 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(20, 20, 20);
-    doc.text(String(valore), rx, y, {align:'right'});
+  function lineH(dash, col, lw) {
+    doc.setLineDashPattern(dash, 0);
+    doc.setDrawColor(col, col, col);
+    doc.setLineWidth(lw);
+    doc.line(4, y, 54, y);
     y += 6;
   }
 
-  // ── Dati identificativi ──
-  riga('N. Buono', '#' + numBuono);
+  function riga(label, valore) {
+    // Etichetta: grassetto, nero, 9pt
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text(label.toUpperCase(), lx, y);
+    // Valore: grassetto, nero, 11pt
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text(String(valore), rx, y, {align: 'right'});
+    y += 9;
+  }
+
+  // ── Intestazione ──
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.text('DISTRIBUTORE DI CARBURANTE', cx, y, {align: 'center'}); y += 8;
+  doc.setFontSize(18);
+  doc.text('TOTALERG', cx, y, {align: 'center'}); y += 9;
+  doc.setFontSize(10);
+  doc.text('di Fabrizi Emanuela', cx, y, {align: 'center'}); y += 7;
+  doc.setFontSize(9);
+  doc.text('-- BUONO CARBURANTE --', cx, y, {align: 'center'}); y += 6;
+
+  lineH([2, 1.5], 0, 0.5);
+
+  // ── Dati ──
+  riga('N. Buono', numBuono);
   riga('Data', dataStr);
   y += 1;
-
-  // Linea sottile
-  doc.setLineDashPattern([0.5, 0.8], 0);
-  doc.setDrawColor(210, 210, 210);
-  doc.line(4, y, 54, y);
-  y += 4;
+  lineH([1, 1], 80, 0.3);
 
   riga('Societa', b.societa.toUpperCase());
   riga('Targa', b.targa || 'N/D');
   y += 1;
+  lineH([1, 1], 80, 0.3);
 
-  // Linea sottile
-  doc.setLineDashPattern([0.5, 0.8], 0);
-  doc.setDrawColor(210, 210, 210);
-  doc.line(4, y, 54, y);
-  y += 4;
-
-  // ── Carburante ──
   riga('Carburante', b.carburante);
-  riga('Importo carb.', 'EUR ' + euroCarb.toFixed(2));
+  riga('Importo', 'EUR ' + euroCarb.toFixed(2));
 
   // ── Prodotti extra ──
   if (extra.length > 0) {
     y += 1;
-    doc.setLineDashPattern([0.5, 0.8], 0);
-    doc.setDrawColor(210, 210, 210);
-    doc.line(4, y, 54, y);
-    y += 4;
+    lineH([1, 1], 80, 0.3);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    doc.text('ALTRI PRODOTTI', lx, y);
-    y += 5;
-    extra.forEach(function(p) {
-      riga(p.desc, 'EUR ' + p.euro.toFixed(2));
-    });
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text('ALTRI PRODOTTI', lx, y); y += 8;
+    extra.forEach(function(p) { riga(p.desc, 'EUR ' + p.euro.toFixed(2)); });
   }
 
-  // ── Linea totale ──
-  y += 2;
-  doc.setLineDashPattern([1.5, 1], 0);
-  doc.setDrawColor(60, 60, 60);
-  doc.setLineWidth(0.4);
-  doc.line(4, y, 54, y);
-  y += 6;
-
   // ── Totale ──
+  y += 2;
+  lineH([2, 1.5], 0, 0.6);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.text('TOTALE', lx, y);
+  doc.setFontSize(16);
+  doc.text('EUR ' + b.euro.toFixed(2), rx, y, {align: 'right'});
+  y += 20;
+
+  // ── Firma ──
+  doc.setLineDashPattern([1.5, 1.5], 0);
+  doc.setDrawColor(80, 80, 80);
+  doc.setLineWidth(0.4);
+  doc.line(8, y, 50, y); y += 6;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(40, 40, 40);
-  doc.text('TOTALE', lx, y);
-  doc.setFontSize(12);
-  doc.text('EUR ' + b.euro.toFixed(2), rx, y, {align:'right'});
-  y += 16;
-
-  // ── Spazio firma ──
-  doc.setLineDashPattern([1, 1], 0);
-  doc.setDrawColor(160, 160, 160);
-  doc.setLineWidth(0.3);
-  doc.line(12, y, 68, y);
-  y += 4;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(160, 160, 160);
-  doc.text('Firma', cx, y, {align:'center'});
-  y += 8;
+  doc.setTextColor(0, 0, 0);
+  doc.text('Firma', cx, y, {align: 'center'}); y += 12;
 
   // ── Footer ──
-  doc.setFontSize(6.5);
-  doc.setTextColor(180, 180, 180);
-  doc.text('Grazie per la fiducia', cx, y, {align:'center'});
-  y += 4;
-  doc.text('Conservare questo scontrino', cx, y, {align:'center'});
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Grazie per la fiducia', cx, y, {align: 'center'}); y += 6;
+  doc.text('Conservare questo scontrino', cx, y, {align: 'center'});
 
-  doc.save('buono_' + numBuono + '_' + b.societa.replace(/\s/g,'_') + '.pdf');
+  doc.save('buono_' + numBuono + '_' + b.societa.replace(/\s/g, '_') + '.pdf');
 }
 
 // ═══════════════════════════════════════════════
